@@ -290,12 +290,12 @@ if __name__ == '__main__':
     print(f"✓ Batch size: {batch_size}, Training batches per epoch: {len(train_loader)}")
     print(f"✓ Training samples: {len(train_indices)}, Validation samples: {len(val_indices)}\n")
     
-    num_epochs = 125
+    num_epochs = 500
     learning_rate = 0.0125
-    lambda0 = 0.0005  # ~ 0.001 for 92.59 testacc
+    lambda0 = 0.0001 
     
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=3, min_lr=1e-5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=3, min_lr=5e-5)
     
     train_loss_history  = []
     val_loss_history    = []

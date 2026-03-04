@@ -133,6 +133,44 @@ class CIFAR10_CNN(nn.Module):
 
 
 
+class CIFAR10_150k(nn.Module):
+    def __init__(self, num_classes=10):
+        super(CIFAR10_150k, self).__init__()
+        
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(),
+            nn.Conv2d(128, 4, kernel_size=1), nn.BatchNorm2d(4), nn.ReLU()
+        )
+        # spatial dim = 32x32 
+        self.conv2 = ExpCompBlock(4, 128, 4)
+        # spatial dim = 32x32 
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(4, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(kernel_size=2, stride=2), # 16x16
+            nn.Conv2d(64, 16, kernel_size=3), nn.BatchNorm2d(16), nn.ReLU(),    # 14x14
+            nn.Conv2d(16, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(kernel_size=2, stride=2)  # 7x7
+        )
+        
+        self.resblock = DepthSepBlock(32, 128, 8)
+        
+        self.conv_final = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3), nn.BatchNorm2d(64), nn.ReLU(),   # 5x5
+            nn.Conv2d(64, num_classes, kernel_size=3), nn.BatchNorm2d(num_classes), # 3x3
+            nn.AdaptiveAvgPool2d(1)
+        )
+
+    
+    def forward(self, xin):
+        x = self.conv1(xin)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.resblock(x)
+        x = self.conv_final(x)
+
+        x = torch.flatten(x, 1) 
+        return x
+
+
+
 
 
 
