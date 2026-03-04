@@ -1,0 +1,17 @@
+# Python virtual environment
+myenv/
+venv/
+env/
+
+# Python cache (compiled files)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Data (Optional: ignore if you don't want to upload the raw MNIST images)
+../data/
+data/
