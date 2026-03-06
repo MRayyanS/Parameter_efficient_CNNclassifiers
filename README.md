@@ -10,8 +10,10 @@ Approximately, ~35k and ~50k parameters for FashionMNIST, CIFAR10 datasets respe
 ## 🚀 Performance
 | Model | Datasets | Parameters | Accuracy |
 | :--- | :--- | :--- | :--- |
-| FashionMNIST35k_model1 | FashionMNIST | 35k | [92.7 %] |
-| FashionMNIST35k_model2 | FashionMNIST | 35k | [92.55 %] |
+| FashionMNIST_35k_model1 | FashionMNIST | 35k | 92.7 % |
+| FashionMNIST_35k_model2 | FashionMNIST | 35k | 92.5 % |
+| CIFAR10_150k_model1 | CIFAR10 | 150k | 87.8 % |
+| CIFAR10_150k_model2 | CIFAR10 | 150k | 87.3 % |
 
 
 
