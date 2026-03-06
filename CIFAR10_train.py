@@ -29,32 +29,12 @@ device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 # LOAD appropriate DATASET and create train/val split
 # ============================================================================
 
-def get_dataset_stats(dataset_name):
-    """
-    Returns: data_mean, data_std
-    """
-    # Define the statistics for supported datasets
-    stats = {
-        "FashionMNIST": {"mean": (0.2861,), "std": (0.3530,)},
-        "CIFAR10": {"mean": (0.4914, 0.4822, 0.4465), "std": (0.2023, 0.1994, 0.2010)}
-    }
-    
-    # Retrieve stats for the given dataset (defaults t_class)
-    selected_stats = stats.get(dataset_name, stats[dataset_name])
-    
-    data_mean = selected_stats["mean"]
-    data_std = selected_stats["std"]
-    
-    return data_mean, data_std
-
-# Load Data and its stats
-dataset_name = "CIFAR10"
-dataset_class = getattr(datasets, dataset_name)
-DATA_mean, DATA_std = get_dataset_stats(dataset_name)
+DATA_mean = (0.4914, 0.4822, 0.4465)
+DATA_std  = (0.2023, 0.1994, 0.2010)
 
 # define noise and blur data augmentation objects
 gaussian_noise = AddGaussianNoise(mean=0., std=0.05, p=0.95) 
-gaussian_blur  = AddGaussianBlur(kernel_size=3, sigma=0.5, p=0.95)
+gaussian_blur  = AddGaussianBlur(kernel_size=3, sigma=0.05, p=0.95)
 
 train_transform = transforms.Compose([
     transforms.RandomHorizontalFlip(p=0.5),
@@ -72,27 +52,23 @@ eval_transform = transforms.Compose([
 ])
 
 # Load data
-full_training_data_augmented = dataset_class(
+full_training_data_augmented = datasets.CIFAR10(
     root="./data", train=True, download=True, transform=train_transform
 )
 
-full_training_data_no_aug = dataset_class(
+full_training_data_no_aug = datasets.CIFAR10(
     root="./data", train=True, download=True, transform=eval_transform
 )
 
-test_data = dataset_class(
+test_data = datasets.CIFAR10(
     root="./data", train=False, download=True, transform=eval_transform
 )
 
 # ----------------------------------------------------------------------------
 # Create train/val split
 num_classes = 10
-if dataset_name == "FashionMNIST":
-    train_samples_per_class = 5500 
-    val_samples_per_class = 500
-elif dataset_name == "CIFAR10":
-    train_samples_per_class = 4500 
-    val_samples_per_class = 500
+train_samples_per_class = 4500 
+val_samples_per_class = 500
 
 class_indices = {i: [] for i in range(num_classes)}
 for idx, (_, label) in enumerate(full_training_data_no_aug):
@@ -155,7 +131,7 @@ def train(epoch, lambda0, train_loss_history):
     
     if epoch/num_epochs <= 0.7:
         gaussian_noise.set_std = 0.025 * ( epoch/num_epochs )
-        gaussian_blur.set_sigma = 0.05 * ( epoch/num_epochs )
+        gaussian_blur.set_sigma = 0.1 * ( epoch/num_epochs )
 
     for i, (images, labels) in enumerate(train_loader):
         images, labels = images.to(device), labels.to(device)
@@ -164,7 +140,8 @@ def train(epoch, lambda0, train_loss_history):
         outputs = model(images)
         
         # Calculate Loss = CEntropy + L2 regularization
-        loss = criterion(outputs, labels)
+        CEloss = criterion(outputs, labels)
+        loss  = CEloss
         l2_reg = sum(p.pow(2).sum() for p in model.parameters() if p.requires_grad)
         if epoch/num_epochs <= 0.7:
             loss += (lambda0 / (100 + epoch)) * l2_reg
@@ -174,20 +151,15 @@ def train(epoch, lambda0, train_loss_history):
         optimizer.step()
 
         # --- Calculate Gradient Norm ---
-        grad_norm_batch = 0.0
-        for p in model.parameters():
-            if p.grad is not None:
-                param_norm = p.grad.detach().data.norm(2)
-                grad_norm_batch += param_norm.item() ** 2
-        grad_norm_batch = grad_norm_batch ** 0.5
-        # ------------------------------------
+        grad_norm_batch = sum(p.grad.detach().data.pow(2).sum() for p in model.parameters() if p.requires_grad)
         
-        train_loss_history.append(loss.item())
-        epoch_loss += (loss.item() - epoch_loss)/(i+1)
+        # ------------------------------------        
+        train_loss_history.append(CEloss.item())
+        epoch_loss += (CEloss.item() - epoch_loss)/(i+1)
         epoch_grad_norm += (grad_norm_batch - epoch_grad_norm)/(i+1)
         epoch_l2reg += (l2_reg - epoch_l2reg)/(i+1)
     
-    print(f'Epoch = {epoch}, Training Loss: {epoch_loss:.4f}, Gradient Norm: {epoch_grad_norm:.4f}, l2-reg loss: {epoch_l2reg:.4f}')
+    print(f'Epoch = {epoch}, Training Loss: {epoch_loss:.4f}, Gradient Norm sq: {epoch_grad_norm:.4f}, l2-reg loss: {epoch_l2reg:.4f}')
 
 # function for validation
 def validate():
@@ -295,7 +267,7 @@ if __name__ == '__main__':
     lambda0 = 0.001
     
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=3, min_lr=5e-5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=3, min_lr=1e-4)
     
     train_loss_history  = []
     val_loss_history    = []
@@ -346,7 +318,7 @@ if __name__ == '__main__':
     # ============================================================================
 
     # Define the path for the results file
-    results_path = f'{dataset_name}_training_results.pth'
+    results_path = 'CIFAR10_training_results.pth'
 
     # Create a dictionary containing all the data you want to preserve
     training_results = {
@@ -368,11 +340,3 @@ if __name__ == '__main__':
     print(f"\n✓ All training results and best model saved to: {results_path}")
 
     plot_loss_curves(train_loss_history, val_loss_history, batches_per_epoch)
-
-
-
-
-
-
-
-

@@ -29,28 +29,8 @@ device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 # LOAD appropriate DATASET and create train/val split
 # ============================================================================
 
-def get_dataset_stats(dataset_name):
-    """
-    Returns: data_mean, data_std
-    """
-    # Define the statistics for supported datasets
-    stats = {
-        "FashionMNIST": {"mean": (0.2861,), "std": (0.3530,)},
-        "CIFAR10": {"mean": (0.4914, 0.4822, 0.4465), "std": (0.2023, 0.1994, 0.2010)}
-    }
-    
-    # Retrieve stats for the given dataset (defaults t_class)
-    selected_stats = stats.get(dataset_name, stats[dataset_name])
-    
-    data_mean = selected_stats["mean"]
-    data_std = selected_stats["std"]
-    
-    return data_mean, data_std
-
-# Load Data and its stats
-dataset_name = "CIFAR10"
-dataset_class = getattr(datasets, dataset_name)
-DATA_mean, DATA_std = get_dataset_stats(dataset_name)
+DATA_mean = (0.2861,)
+DATA_std = (0.3530,)
 
 # define noise and blur data augmentation objects
 gaussian_noise = AddGaussianNoise(mean=0., std=0.05, p=0.95) 
@@ -72,27 +52,23 @@ eval_transform = transforms.Compose([
 ])
 
 # Load data
-full_training_data_augmented = dataset_class(
+full_training_data_augmented = datasets.FashionMNIST(
     root="./data", train=True, download=True, transform=train_transform
 )
 
-full_training_data_no_aug = dataset_class(
+full_training_data_no_aug = datasets.FashionMNIST(
     root="./data", train=True, download=True, transform=eval_transform
 )
 
-test_data = dataset_class(
+test_data = datasets.FashionMNIST(
     root="./data", train=False, download=True, transform=eval_transform
 )
 
 # ----------------------------------------------------------------------------
 # Create train/val split
 num_classes = 10
-if dataset_name == "FashionMNIST":
-    train_samples_per_class = 5500 
-    val_samples_per_class = 500
-elif dataset_name == "CIFAR10":
-    train_samples_per_class = 4500 
-    val_samples_per_class = 500
+train_samples_per_class = 5500 
+val_samples_per_class = 500
 
 class_indices = {i: [] for i in range(num_classes)}
 for idx, (_, label) in enumerate(full_training_data_no_aug):
@@ -174,14 +150,9 @@ def train(epoch, lambda0, train_loss_history):
         optimizer.step()
 
         # --- Calculate Gradient Norm ---
-        grad_norm_batch = 0.0
-        for p in model.parameters():
-            if p.grad is not None:
-                param_norm = p.grad.detach().data.norm(2)
-                grad_norm_batch += param_norm.item() ** 2
-        grad_norm_batch = grad_norm_batch ** 0.5
-        # ------------------------------------
+        grad_norm_batch = sum(p.grad.detach().data.pow(2).sum() for p in model.parameters() if p.requires_grad)
         
+        # ------------------------------------
         train_loss_history.append(loss.item())
         epoch_loss += (loss.item() - epoch_loss)/(i+1)
         epoch_grad_norm += (grad_norm_batch - epoch_grad_norm)/(i+1)
@@ -276,7 +247,7 @@ if __name__ == '__main__':
     
     # define the model to be trained
     # model = FashionMNIST_CNN(num_classes=num_classes).to(device)
-    model = CIFAR10_CNN(num_classes=num_classes).to(device)
+    model = FashionMNIST_CNN(num_classes=num_classes).to(device)
 
 
     # count and print the number of parameters
@@ -346,7 +317,7 @@ if __name__ == '__main__':
     # ============================================================================
 
     # Define the path for the results file
-    results_path = f'{dataset_name}_training_results.pth'
+    results_path = 'FashionMNIST_training_results.pth'
 
     # Create a dictionary containing all the data you want to preserve
     training_results = {
@@ -368,11 +339,3 @@ if __name__ == '__main__':
     print(f"\n✓ All training results and best model saved to: {results_path}")
 
     plot_loss_curves(train_loss_history, val_loss_history, batches_per_epoch)
-
-
-
-
-
-
-
-
