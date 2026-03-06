@@ -27,46 +27,12 @@ Slightly bigger models
 
 ## Ensemble models
 
-
-
-<table>
-  <thead>
-    <tr>
-      <th>Model</th>
-      <th>Datasets</th>
-      <th>Parameters</th>
-      <th>Accuracy</th>
-      <th>Ensemble Accuracy</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>FashionMNIST_35k_model1</td>
-      <td rowspan="2">FashionMNIST</td>
-      <td>35k</td>
-      <td>92.7 %</td>
-      <td rowspan="2"><b>93.8 %</b></td>
-    </tr>
-    <tr>
-      <td>FashionMNIST_35k_model2</td>
-      <td>35k</td>
-      <td>92.5 %</td>
-    </tr>
-    <tr>
-      <td>CIFAR10_56k_model1</td>
-      <td rowspan="2">CIFAR10</td>
-      <td>56k</td>
-      <td>85.5 %</td>
-      <td rowspan="2"><b>87.2 %</b></td>
-    </tr>
-    <tr>
-      <td>CIFAR10_56k_model2</td>
-      <td>56k</td>
-      <td>85.3 %</td>
-    </tr>
-  </tbody>
-</table>
-
+| Model | Dataset | Parameters | Single Accuracy | Ensemble Accuracy |
+| :--- | :--- | :--- | :--- | :--- |
+| FashionMNIST_35k_v1 | FashionMNIST | 35k | 92.7 % | **93.8 %** |
+| FashionMNIST_35k_v2 | FashionMNIST | 35k | 92.5 % | |
+| CIFAR10_56k_v1 | CIFAR10 | 56k | 85.5 % | **87.2 %** |
+| CIFAR10_56k_v2 | CIFAR10 | 56k | 85.3 % | |
 
 ## 🛠️ Usage
 1. Clone the repo: `git clone https://github.com/MRayyanS/Parameter_efficient_CNNclassifiers.git`
