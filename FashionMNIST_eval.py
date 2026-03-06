@@ -7,7 +7,8 @@ import torch.nn.functional as F
 
 from utils import *
 from model_architectures import *
-from train_procedure import *
+from FashionMNIST_train import *
+
 
 import warnings
 warnings.filterwarnings("ignore", message=".*VisibleDeprecationWarning.*")
@@ -22,6 +23,8 @@ device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 
 DATA_mean = (0.2861,)
 DATA_std = (0.3530,)
+num_classes = 10
+batch_size = 1024
 
 eval_transform = transforms.Compose([
     transforms.ToTensor(),
@@ -45,14 +48,14 @@ test_loader = DataLoader(
 # ============================================================================
 
 MODEL_PATHS = [
-    f"trained_models/FashionMNIST35k_training_results{i}.pth" for i in [1, 2]
+    f"trained_models/FashionMNIST_35k_model{i}.pth" for i in [1, 2]
 ]
 
 def load_ensemble(model_paths, device):
     """Load all models and return them in eval mode."""
     models = []
     for path in model_paths:
-        m = FashionMNIST35k(num_classes=num_classes).to(device)
+        m = FashionMNIST_35k(num_classes=num_classes).to(device)
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         m.load_state_dict(checkpoint['model_state_dict'])
         m.eval()

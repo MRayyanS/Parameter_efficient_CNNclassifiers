@@ -317,7 +317,7 @@ if __name__ == '__main__':
     # ============================================================================
 
     # Define the path for the results file
-    results_path = 'FashionMNIST_training_results.pth'
+    results_path = 'FashionMNIST_model.pth'
 
     # Create a dictionary containing all the data you want to preserve
     training_results = {

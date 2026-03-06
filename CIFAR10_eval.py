@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from utils import *
 from model_architectures import *
-from train_procedure import *
+# from CIFAR10_train import *
 
 import warnings
 warnings.filterwarnings("ignore", message=".*VisibleDeprecationWarning.*")
@@ -22,6 +22,8 @@ device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 
 DATA_mean = (0.4914, 0.4822, 0.4465)
 DATA_std  = (0.2023, 0.1994, 0.2010)
+num_classes = 10
+batch_size = 1024
 
 eval_transform = transforms.Compose([
     transforms.ToTensor(),
@@ -45,7 +47,7 @@ test_loader = DataLoader(
 # ============================================================================
 
 MODEL_PATHS = [
-    f"trained_models/CIFAR10_150k_training_results{i}.pth" for i in [1, 2]
+    f"trained_models/CIFAR10_150k_model{i}.pth" for i in [1, 2]
 ]
 
 def load_ensemble(model_paths, device):

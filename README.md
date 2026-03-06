@@ -1,12 +1,23 @@
 # Parameter Efficient CNN Classifiers
 
-This repository contains highly optimized CNN models for FashionMNIST, focusing on high accuracy with a minimal parameter footprint (~35k and ~50k parameters).
+This repository contains highly optimized CNN models focusing on high accuracy with a minimal parameter footprint. 
+
+
+
+
+Approximately, ~35k and ~50k parameters for FashionMNIST, CIFAR10 datasets respectiv
 
 ## 🚀 Performance
-| Model | Parameters | Accuracy |
+| Model | Datasets | Parameters | Accuracy |
 | :--- | :--- | :--- | :--- |
-| Model V1 | 35k | [Your %] |
-| Model V2 | 50k | [Your %] |
+| FashionMNIST35k_model1 | FashionMNIST | 35k | [92.7 %] |
+| FashionMNIST35k_model2 | FashionMNIST | 35k | [92.55 %] |
+
+
+
+## Ensemble models
+
+
 
 ## 🛠️ Usage
 1. Clone the repo: `git clone https://github.com/MRayyanS/Parameter_efficient_CNNclassifiers.git`
