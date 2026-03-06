@@ -47,14 +47,14 @@ test_loader = DataLoader(
 # ============================================================================
 
 MODEL_PATHS = [
-    f"trained_models/CIFAR10_150k_model{i}.pth" for i in [1, 2]
+    f"trained_models/CIFAR10_56k_model{i}.pth" for i in [1, 2]
 ]
 
 def load_ensemble(model_paths, device):
     """Load all models and return them in eval mode."""
     models = []
     for path in model_paths:
-        m = CIFAR10_150k(num_classes=num_classes).to(device)
+        m = CIFAR10_56k(num_classes=num_classes).to(device)
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         m.load_state_dict(checkpoint['model_state_dict'])
         m.eval()
