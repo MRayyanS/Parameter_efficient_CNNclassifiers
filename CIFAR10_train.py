@@ -131,7 +131,7 @@ def train(epoch, lambda0, train_loss_history):
     
     if epoch/num_epochs <= 0.7:
         gaussian_noise.set_std = 0.025 * ( epoch/num_epochs )
-        gaussian_blur.set_sigma = 0.1 * ( epoch/num_epochs )
+        gaussian_blur.set_sigma = 0.05 * ( epoch/num_epochs )
 
     for i, (images, labels) in enumerate(train_loader):
         images, labels = images.to(device), labels.to(device)

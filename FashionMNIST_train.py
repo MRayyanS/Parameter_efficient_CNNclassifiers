@@ -131,7 +131,7 @@ def train(epoch, lambda0, train_loss_history):
     
     if epoch/num_epochs <= 0.7:
         gaussian_noise.set_std = 0.025 * ( epoch/num_epochs )
-        gaussian_blur.set_sigma = 0.05 * ( epoch/num_epochs )
+        gaussian_blur.set_sigma = 0.125 * ( epoch/num_epochs )
 
     for i, (images, labels) in enumerate(train_loader):
         images, labels = images.to(device), labels.to(device)
@@ -143,7 +143,7 @@ def train(epoch, lambda0, train_loss_history):
         loss = criterion(outputs, labels)
         l2_reg = sum(p.pow(2).sum() for p in model.parameters() if p.requires_grad)
         if epoch/num_epochs <= 0.7:
-            loss += (lambda0 / (100 + epoch)) * l2_reg
+            loss += (lambda0 / (10 + epoch)) * l2_reg
 
         # backprop and optimizer step
         loss.backward()
@@ -246,7 +246,6 @@ from model_architectures import *
 if __name__ == '__main__':
     
     # define the model to be trained
-    # model = FashionMNIST_CNN(num_classes=num_classes).to(device)
     model = FashionMNIST_CNN(num_classes=num_classes).to(device)
 
 
@@ -262,8 +261,8 @@ if __name__ == '__main__':
     print(f"✓ Training samples: {len(train_indices)}, Validation samples: {len(val_indices)}\n")
     
     num_epochs = 500
-    learning_rate = 0.0125
-    lambda0 = 0.001
+    learning_rate = 0.025
+    lambda0 = 0.0005
     
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=3, min_lr=5e-5)

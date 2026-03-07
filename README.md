@@ -25,8 +25,8 @@ Slightly bigger models
 
 ## 🛠️ Usage
 
-1. For training and reproduce: `dataset_train.py`
-2. For inference: run `dataset_eval.py` with following changes (don't forget to select appropriate model/s)
+1. For training and reproduce: `[dataset]_train.py`
+2. For inference: run `[dataset]_eval.py` with following changes (don't forget to select appropriate model/s)
 3. "trained_models" directory contains all the trained models (open weights)
 4. "model_architecture.py" contains the details of the model architecture for all the trained models
     
