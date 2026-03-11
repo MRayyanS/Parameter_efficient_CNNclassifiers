@@ -343,4 +343,117 @@ class CIFAR10_150k(nn.Module):
 
 
 
+# ============================================================================
+#  CNN models for CIFAR100
+# ============================================================================
+
+class CIFAR100_CNN(nn.Module):
+    def __init__(self, num_classes=100):
+        super(CIFAR100_CNN, self).__init__()
+        
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 256, kernel_size=3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), # 32x32
+            nn.Conv2d(256, 4, kernel_size=1), nn.BatchNorm2d(4), nn.ReLU() # 32x32
+        )
+
+        # spatial dim = # 32x32
+        self.conv2 = ExpCompBlock(4, 256, 5)
+
+        # spatial dim = 16x16
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(4, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(kernel_size=2, stride=2), # 16x16
+            nn.Conv2d(128, 32, kernel_size=1), nn.BatchNorm2d(32), nn.ReLU(),    # 16x16
+            nn.Conv2d(32, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(kernel_size=2, stride=2),  # 8x8
+            nn.Conv2d(32, 32, kernel_size=3), nn.BatchNorm2d(32), nn.ReLU() # 6x6
+        )
+
+        # spatial dim = 6x6
+        self.resblock = DepthSepBlock(32, 128, 10)
+        
+        # spatial dim = 6x6
+        self.conv_final = nn.Sequential(
+            nn.Conv2d(32, 128, kernel_size=3), nn.BatchNorm2d(128), nn.ReLU(),    # 4x4
+            nn.MaxPool2d(kernel_size=2, stride=2)  # 2x2
+        )
+
+        # --- NEW: Grouped MLP Logic ---
+        self.num_regions = 2   # 4 = 2x2 of spatial features
+        self.group_input_dim = 128
+        
+        # Four independent MLPs
+        self.Ensemble_MLPs = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(self.group_input_dim, 128), nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(p=0.2),
+                nn.Linear(128, num_classes)
+            ) for _ in range(self.num_regions)
+        ])
+        
+
+    def forward(self, xin):
+        # 1. Feature extraction and refinement
+        x = self.conv1(xin)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.resblock(x)
+        x = self.conv_final(x)
+
+        # 2. Split into 4-128 dimensional feature vectors
+        # Move spatial dims to a list: [Batch, 128, 4] then Permute to [Batch, 4, 128]
+        x = x.view(x.size(0), 128, 4).permute(0, 2, 1)
+
+        # 3. Make ensemble of all the parallel MLPs
+        # x[:, 0, :] is Top-Left, x[:, 1, :] is Top-Right, etc.
+        logits = sum(self.Ensemble_MLPs[i](x[:, i, :]) for i in range(self.num_regions))
+        
+        return logits
+
+
+
+class CIFAR100_277k(nn.Module):
+    def __init__(self, num_classes=100):
+        super(CIFAR100_277k, self).__init__()
+        
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 256, kernel_size=3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), # 32x32
+            nn.Conv2d(256, 4, kernel_size=1), nn.BatchNorm2d(4), nn.ReLU() # 32x32
+        )
+
+        # spatial dim = # 32x32
+        self.conv2 = ExpCompBlock(4, 256, 5)
+
+        # spatial dim = 16x16
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(4, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(kernel_size=2, stride=2), # 16x16
+            nn.Conv2d(128, 32, kernel_size=1), nn.BatchNorm2d(32), nn.ReLU(),    # 16x16
+            nn.Conv2d(32, 32, kernel_size=3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(kernel_size=2, stride=2),  # 8x8
+            nn.Conv2d(32, 32, kernel_size=3), nn.BatchNorm2d(32), nn.ReLU() # 6x6
+        )
+
+        # spatial dim = 6x6
+        self.resblock = DepthSepBlock(32, 128, 10)
+        
+        # spatial dim = 6x6
+        self.conv_final = nn.Sequential(
+            nn.Conv2d(32, 128, kernel_size=3), nn.BatchNorm2d(128), nn.ReLU(),    # 4x4
+            nn.AdaptiveAvgPool2d(1)
+        )
+
+        self.FClayer = nn.Sequential(
+            nn.Linear(128, 128), nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(p=0.25),
+            nn.Linear(128, 128), nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(p=0.25),
+            nn.Linear(128, num_classes)
+        )
+
+    
+    def forward(self, xin):
+        x = self.conv1(xin)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.resblock(x)
+        x = self.conv_final(x)
+
+        x = torch.flatten(x, 1) 
+        x = self.FClayer(x)
+        return x
+
 
