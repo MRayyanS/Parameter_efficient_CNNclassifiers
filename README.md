@@ -23,6 +23,9 @@ Slightly bigger models
 | FashionMNIST_90k_model2 | FashionMNIST | 90k | 93.08 % | |
 | CIFAR10_150k_model1 | CIFAR10 | 150k | 87.80 % | **89.97 %** |
 | CIFAR10_150k_model2 | CIFAR10 | 150k | 87.33 % | |
+| CIFAR100_277k_model1 | CIFAR100 | 277k | 61.19 % | **65.13 %** |
+| CIFAR100_277k_model2 | CIFAR100 | 277k | 61.60 % | |
+
 
 
 # Design and training philosophy 
