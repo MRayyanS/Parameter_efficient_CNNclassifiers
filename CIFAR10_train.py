@@ -9,8 +9,12 @@ from torchvision import datasets, transforms
 import numpy as np
 import matplotlib.pyplot as plt
 
+import random
+import copy
+import time
 
 from utils import *
+from model_architectures import *
 
 # only to supress warning messages
 import warnings
@@ -24,6 +28,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 np.random.seed(999)
 torch.manual_seed(999)
 device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+print(f'Using device: {device}')
 
 # ============================================================================
 # LOAD appropriate DATASET and create train/val split
@@ -67,16 +72,18 @@ test_data = datasets.CIFAR10(
 # ----------------------------------------------------------------------------
 # Create train/val split
 num_classes = 10
-train_samples_per_class = 4500 
-val_samples_per_class = 500
+train_samples_per_class = 5000 
+val_samples_per_class = 0
 
 class_indices = {i: [] for i in range(num_classes)}
-for idx, (_, label) in enumerate(full_training_data_no_aug):
+labels = full_training_data_no_aug.targets
+
+for idx, label in enumerate(labels):
     class_indices[label].append(idx)
 
 for class_id in range(num_classes):
-    class_indices[class_id] = np.array(class_indices[class_id])
-    np.random.shuffle(class_indices[class_id])
+    # Shuffle the list in-place using random.shuffle (built-in)
+    random.shuffle(class_indices[class_id])
 
 train_indices = []
 val_indices = []
@@ -95,7 +102,7 @@ np.random.shuffle(val_indices)
 train_data = Subset(full_training_data_augmented, train_indices)
 val_data = Subset(full_training_data_no_aug, val_indices)
 
-batch_size = 1024
+batch_size = 512
 train_loader = DataLoader(
     train_data, 
     batch_size=batch_size, 
@@ -105,17 +112,17 @@ train_loader = DataLoader(
     prefetch_factor=2         # Workers will prepare 2 batches ahead
 )
 val_loader = DataLoader(
-    val_data, 
+    test_data, 
     batch_size=batch_size, 
     shuffle=False, 
-    num_workers=4,
+    num_workers=6,
     persistent_workers=True
 )
 test_loader = DataLoader(
     test_data, 
     batch_size=batch_size, 
     shuffle=False, 
-    num_workers=4,
+    num_workers=6,
 )
 
 
@@ -123,46 +130,40 @@ test_loader = DataLoader(
 # Build train loop, validation, and test functions
 # ============================================================================
 
-def train(epoch, lambda0, train_loss_history):
+def train(model, epoch, train_loss_history):
     model.train()
     epoch_loss = 0.0
-    epoch_grad_norm = 0.0
-    epoch_l2reg = 0.0
     
     if epoch/num_epochs <= 0.7:
-        gaussian_noise.set_std = 0.025 * ( epoch/num_epochs )
-        gaussian_blur.set_sigma = 0.05 * ( epoch/num_epochs )
+        gaussian_noise.set_std = 0.00125 * ( epoch/num_epochs )
+        gaussian_blur.set_sigma = 0.00125 * ( epoch/num_epochs )
 
     for i, (images, labels) in enumerate(train_loader):
         images, labels = images.to(device), labels.to(device)
         
-        optimizer.zero_grad()
+        # forward pass
         outputs = model(images)
-        
+
         # Calculate Loss = CEntropy + L2 regularization
         CEloss = criterion(outputs, labels)
-        loss  = CEloss
-        l2_reg = sum(p.pow(2).sum() for p in model.parameters() if p.requires_grad)
-        if epoch/num_epochs <= 0.7:
-            loss += (lambda0 / (100 + epoch)) * l2_reg
+        loss   = CEloss
 
         # backprop and optimizer step
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        # --- Calculate Gradient Norm ---
-        grad_norm_batch = sum(p.grad.detach().data.pow(2).sum() for p in model.parameters() if p.requires_grad)
         
         # ------------------------------------        
-        train_loss_history.append(CEloss.item())
-        epoch_loss += (CEloss.item() - epoch_loss)/(i+1)
-        epoch_grad_norm += (grad_norm_batch - epoch_grad_norm)/(i+1)
-        epoch_l2reg += (l2_reg - epoch_l2reg)/(i+1)
-    
-    print(f'Epoch = {epoch}, Training Loss: {epoch_loss:.4f}, Gradient Norm sq: {epoch_grad_norm:.4f}, l2-reg loss: {epoch_l2reg:.4f}')
+        train_loss_history.append(CEloss.detach())
+        epoch_loss += (CEloss.detach() - epoch_loss)/(i+1)
+
+    # At the end of the train() function loop
+    torch.mps.empty_cache()
+    print(f'Epoch = {epoch}, Training Loss: {epoch_loss:.4f}')
+
 
 # function for validation
-def validate():
+def validate(model):
     model.eval()
     correct = 0
     total = 0
@@ -174,9 +175,10 @@ def validate():
     with torch.no_grad():
         for images, labels in val_loader:
             images, labels = images.to(device), labels.to(device)
+
             outputs = model(images)
+
             loss = criterion(outputs, labels)
-            
             val_loss += loss.item()
             _, predicted = outputs.max(1)
             total += labels.size(0)
@@ -196,8 +198,9 @@ def validate():
     
     return avg_loss, accuracy, confusion_matrix_avg.numpy()
 
-def test():
-    best_model.eval()
+
+def test(model):
+    model.eval()
     print(f'Testing with the best model on the test data')
     correct = 0
     total = 0
@@ -209,7 +212,7 @@ def test():
     with torch.no_grad():
         for images, labels in test_loader:
             images, labels = images.to(device), labels.to(device)
-            outputs = best_model(images)
+            outputs = model(images)
             loss = criterion(outputs, labels)
             
             test_loss += loss.item()
@@ -233,12 +236,8 @@ def test():
     return avg_loss, accuracy, confusion_matrix_avg.numpy()
 
 
-# ============================================================================
-# Import model architectures
-# ============================================================================
 
-from model_architectures import *
-
+load_pretrained = True
 
 # ============================================================================
 # Training loop
@@ -247,10 +246,12 @@ from model_architectures import *
 if __name__ == '__main__':
     
     # define the model to be trained
-    # model = FashionMNIST_CNN(num_classes=num_classes).to(device)
-    model = CIFAR10_CNN(num_classes=num_classes).to(device)
+    model = CIFAR10_train(num_classes=num_classes).to(device)
 
-
+    if load_pretrained == True:
+        checkpoint = torch.load('CIFAR10_model.pth', map_location=device, weights_only=False)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        
     # count and print the number of parameters
     count_parameters(model)
 
@@ -262,12 +263,12 @@ if __name__ == '__main__':
     print(f"✓ Batch size: {batch_size}, Training batches per epoch: {len(train_loader)}")
     print(f"✓ Training samples: {len(train_indices)}, Validation samples: {len(val_indices)}\n")
     
-    num_epochs = 500
-    learning_rate = 0.0125
-    lambda0 = 0.001
+    num_epochs = 250
+    learning_rate = 0.0075    # 0.0075
+    regularizer = 0.001
     
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=3, min_lr=1e-4)
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=regularizer)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.95, patience=5, min_lr=5e-4)
     
     train_loss_history  = []
     val_loss_history    = []
@@ -276,22 +277,23 @@ if __name__ == '__main__':
     batches_per_epoch = len(train_loader)
     
     for epoch in range(num_epochs):
+
         # 1. Train the model - and update the train loss and confusion matrix
-        train(epoch, lambda0, train_loss_history)
+        train(model, epoch, train_loss_history)
 
         # 2. evealuate on validation data and compute val_loss, val_acc, and confusion_matrix
-        val_loss, val_acc, val_conf_matrix = validate()
+        val_loss, val_acc, val_conf_matrix = validate(model)
         val_loss_history.append(val_loss)
 
         scheduler.step(val_loss)
         if val_acc > best_acc:
             best_acc = val_acc
-            best_acc_epoch = epoch
-            best_model = model
+            best_epoch = epoch
+            best_model_state_dict = copy.deepcopy(model.state_dict())
             print(f'Best model saved with accuracy: {best_acc:.2f}%')
         
         print(f'\nVal Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
-        print(f'Best val acc: {best_acc:.2f}%, best acc at epoch = {best_acc_epoch}')
+        print(f'Best val acc: {best_acc:.2f}%, best acc at epoch = {best_epoch}')
         print('-' * 60)
         print(f'\nValidation Confusion Matrix (Epoch {epoch}):')
         for row in val_conf_matrix:
@@ -302,14 +304,17 @@ if __name__ == '__main__':
     print(f'Training completed!')
     print('-' * 80)
     
-    test_loss, test_acc, test_conf_matrix = test()
+
+    best_model = CIFAR10_train(num_classes=num_classes).to(device)
+    best_model.load_state_dict(best_model_state_dict)
+    test_loss, test_acc, test_conf_matrix = test(best_model)
     print('\nTest Confusion Matrix:')
     for row in test_conf_matrix:
         # 6.3f means 6 total spaces, 3 after the decimal
         print(" ".join([f"{val:6.3f}" for val in row]))
     
     print('-' * 80)
-    print(f'Best Validation Accuracy: {best_acc:.2f}%, at epoch: {best_acc_epoch}, Test Accuracy: {test_acc:.2f}%')
+    print(f'Best Validation Accuracy: {best_acc:.2f}%, at epoch: {best_epoch}, Test Accuracy: {test_acc:.2f}%')
     print('-' * 80)
 
 
@@ -324,7 +329,7 @@ if __name__ == '__main__':
     training_results = {
         'epoch_trained': epoch + 1,
         'learning_rate': learning_rate,
-        'lambda0': lambda0,
+        'regularizer': regularizer,
         'model_state_dict': best_model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'train_loss_history': train_loss_history,
@@ -339,4 +344,3 @@ if __name__ == '__main__':
 
     print(f"\n✓ All training results and best model saved to: {results_path}")
 
-    plot_loss_curves(train_loss_history, val_loss_history, batches_per_epoch)

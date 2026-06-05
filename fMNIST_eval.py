@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from utils import *
 from model_architectures import *
-from FashionMNIST_train import *
+from fMNIST_train import *
 
 
 import warnings
@@ -55,7 +55,7 @@ def load_ensemble(model_paths, device):
     """Load all models and return them in eval mode."""
     models = []
     for path in model_paths:
-        m = FashionMNIST_90k(num_classes=num_classes).to(device)
+        m = fMNIST_90k(num_classes=num_classes).to(device)
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         m.load_state_dict(checkpoint['model_state_dict'])
         m.eval()
@@ -76,7 +76,7 @@ def ensemble_predict(models, images):
         predicted  (B,)   – predicted class indices
     """
     with torch.no_grad():
-        logit_sum = 0
+        logit_sum = torch.zeros_like(models[0](images)).to(images.device)  
         for m in models:
             logits = m(images)                    # (B, C) raw scores
             logit_sum += logits

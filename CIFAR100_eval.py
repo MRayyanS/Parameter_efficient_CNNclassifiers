@@ -46,22 +46,51 @@ test_loader = DataLoader(
 # Ensemble: load 5 models
 # ============================================================================
 
-MODEL_PATHS = [
-    f"trained_models/CIFAR100_277k_model{i}.pth" for i in [1, 2]
-]
+
+MODEL_PATHS= []
+
+MODEL_PATHS.extend([
+    f"trained_models/CIFAR100_conv_326k_model{i}.pth" for i in [1]
+])
+
 
 def load_ensemble(model_paths, device):
     """Load all models and return them in eval mode."""
     models = []
     for path in model_paths:
-        m = CIFAR100_277k(num_classes=num_classes).to(device)
+        # Choose architecture by filename convention (fallback to CIFAR10_train)
+        if '326k' in path:
+            m = CIFAR100_conv_326k(num_classes=100).to(device)
+        else:
+            m = CIFAR10_train(num_classes=100).to(device)
+
         checkpoint = torch.load(path, map_location=device, weights_only=False)
-        m.load_state_dict(checkpoint['model_state_dict'])
+        # Support both raw state_dict files and full checkpoint dicts
+        state = checkpoint.get('model_state_dict', checkpoint) if isinstance(checkpoint, dict) else checkpoint
+
+        # Try normal load, then try non-strict, then fallback to loading only matching-shape keys
+        try:
+            m.load_state_dict(state)
+        except Exception:
+            try:
+                m.load_state_dict(state, strict=False)
+            except Exception:
+                # filter keys that match by name and shape
+                model_state = m.state_dict()
+                filtered = {k: v for k, v in state.items() if k in model_state and tuple(v.shape) == tuple(model_state[k].shape)}
+                if len(filtered) == 0:
+                    raise RuntimeError(f"No matching keys found when loading {path}")
+                model_state.update(filtered)
+                m.load_state_dict(model_state)
+
         m.eval()
         models.append(m)
-        print(f"Loaded model from '{path}'  "
-              f"(best val acc: {checkpoint.get('best_val_acc', 'N/A'):.2f}%, "
-              f"test acc: {checkpoint.get('final_test_acc', 'N/A'):.2f}%)")
+        best_acc = checkpoint.get('best_val_acc', 'N/A') if isinstance(checkpoint, dict) else 'N/A'
+        test_acc = checkpoint.get('final_test_acc', 'N/A') if isinstance(checkpoint, dict) else 'N/A'
+        try:
+            print(f"Loaded model from '{path}'  (best val acc: {float(best_acc):.2f}%, test acc: {float(test_acc):.2f}%)")
+        except Exception:
+            print(f"Loaded model from '{path}'")
     return models
 
 
@@ -75,7 +104,7 @@ def ensemble_predict(models, images):
         predicted  (B,)   – predicted class indices
     """
     with torch.no_grad():
-        logit_sum = 0
+        logit_sum = torch.zeros_like(models[0](images)).to(images.device)
         for m in models:
             logits = m(images)                    # (B, C) raw scores
             logit_sum += logits

@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import datasets
 from torchvision import transforms
+import torchvision.transforms.functional as TF
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
@@ -65,154 +66,6 @@ class VanillaResBlock(nn.Module):
         for module in self.resModules:
             x = module(x)
         return x
-
-
-
-# Blocks with convolutional feature channels expand and shrink
-class ExpCompModule(nn.Module):
-    def __init__(self, in_ch, middle_ch):
-        super(ExpCompModule, self).__init__()
-
-        self.Expand = nn.Sequential(
-            nn.Conv2d(in_ch, middle_ch, kernel_size=3, padding=1), nn.BatchNorm2d(middle_ch)
-        )
-
-        self.Compress = nn.Sequential(
-            nn.ReLU(), nn.Conv2d(middle_ch, in_ch, kernel_size=1), nn.BatchNorm2d(in_ch)
-        )
-
-    def forward(self, x):
-        out = self.Expand(x)
-        out = self.Compress(out)
-        return out
-
-# custom residual blocks with configurable number of modules
-class ExpCompBlock(nn.Module):
-    def __init__(self, in_ch, middle_ch, num_modules=5):
-        super(ExpCompBlock, self).__init__()
-        
-        # Create a list of modules
-        self.res_modules = nn.ModuleList([
-            ExpCompModule(in_ch, middle_ch) for _ in range(num_modules)
-        ])
-    
-    def forward(self, x):
-        for res_module in self.res_modules:
-            x = res_module(x)
-        return x
-
-
-
-# Custom expand-compress modules wit residual connections
-class ExpCompResModule(nn.Module):
-    def __init__(self, in_ch, middle_ch):
-        super(ExpCompResModule, self).__init__()
-
-        # THE EXPAND COMPONENT
-        self.Expand = nn.Sequential(
-            # 1. Pointwise Expansion: Increase channels from in_ch to middle_ch first
-            nn.Conv2d(in_ch, middle_ch, kernel_size=3, padding=1), nn.BatchNorm2d(middle_ch)
-        )
-
-        self.Compress = nn.Sequential(
-            nn.ReLU(), nn.Conv2d(middle_ch, in_ch, kernel_size=1), nn.BatchNorm2d(in_ch)
-        )
-
-    def forward(self, x):
-        out = self.Expand(x)
-        out = self.Compress(out) + x 
-        return out
-
-# custom residual blocks with configurable number of modules
-class ExpCompResBlock(nn.Module):
-    def __init__(self, in_ch, middle_ch, num_modules=5):
-        super(ExpCompResBlock, self).__init__()
-        
-        # Create a list of modules
-        self.res_modules = nn.ModuleList([
-            ExpCompResModule(in_ch, middle_ch) for _ in range(num_modules)
-        ])
-    
-    def forward(self, x):
-        for res_module in self.res_modules:
-            x = res_module(x)
-        return x
-
-
-# Depthwise separable modules and block
-class DepthSepModule(nn.Module):
-    def __init__(self, in_ch, middle_ch):
-        super(DepthSepModule, self).__init__()
-
-        # THE EXPAND COMPONENT: Now Depthwise Separable
-        self.Expand = nn.Sequential(
-            # 1. Pointwise Expansion: Increase channels from in_ch to middle_ch first
-            nn.Conv2d(in_ch, middle_ch, kernel_size=1), nn.BatchNorm2d(middle_ch),
-            
-            # 2. Depthwise Convolution: Now you have 'middle_ch' number of 3x3 filters
-            # groups=middle_ch ensures each of the middle_ch channels gets its own 3x3 filter
-            nn.Conv2d(middle_ch, middle_ch, kernel_size=3, padding=1, groups=middle_ch), nn.BatchNorm2d(middle_ch)
-        )
-
-        self.Compress = nn.Sequential(
-            nn.ReLU(), nn.Conv2d(middle_ch, in_ch, kernel_size=1), nn.BatchNorm2d(in_ch)
-        )
-
-    def forward(self, x):
-        out = self.Expand(x)
-        out = self.Compress(out) + x 
-        return out
-
-class DepthSepBlock(nn.Module):
-    def __init__(self, in_ch, middle_ch, num_modules):
-        super(DepthSepBlock, self).__init__()
-
-        self.res_modules = nn.ModuleList([
-            DepthSepModule(in_ch, middle_ch) for _ in range(num_modules)
-        ])
-
-    def forward(self, x):
-        for module in self.res_modules:
-            x = module(x)
-        return x
-
-
-
-
-# custom residual modules
-class DualResModule(nn.Module):
-    def __init__(self, in_ch, middle_ch):
-        super(DualResModule, self).__init__()
-
-        self.Expand = nn.Sequential(
-            nn.Conv2d(in_ch, middle_ch, kernel_size=3, padding=1), nn.BatchNorm2d(middle_ch)
-        )
-
-        self.Compress = nn.Sequential(
-            nn.ReLU(), nn.Conv2d(middle_ch, in_ch, kernel_size=1), nn.BatchNorm2d(in_ch)
-        )
-
-    def forward(self, x, y=0):
-        y = self.Expand(x)   + y
-        x = self.Compress(y) + x
-        return x, y
-
-
-# custom residual blocks with configurable number of modules
-class DualResBlock(nn.Module):
-    def __init__(self, in_ch, middle_ch, num_modules=5):
-        super(DualResBlock, self).__init__()
-        
-        # Create a list of modules
-        self.res_modules = nn.ModuleList([
-            DualResModule(in_ch, middle_ch) for _ in range(num_modules)
-        ])
-    
-    def forward(self, x, y=0):
-        for res_module in self.res_modules:
-            x, y = res_module(x, y)
-        return x, y
-
 
 
 
@@ -317,7 +170,8 @@ class AddGaussianNoise:
 # Custom Gaussian Blur transform with dynamic sigma
 class AddGaussianBlur:
     def __init__(self, kernel_size=3, sigma=1.0, p=0.95):
-        self.kernel_size = kernel_size
+
+        self.kernel_size = [kernel_size, kernel_size] if isinstance(kernel_size, int) else kernel_size
         self.sigma = sigma
         self.p = p
         self.current_sigma = sigma
@@ -327,7 +181,7 @@ class AddGaussianBlur:
     
     def __call__(self, img):
         if torch.rand(1).item() < self.p and self.current_sigma > 0:
-            return transforms.functional.gaussian_blur(img, self.kernel_size, [self.current_sigma])
+            return TF.gaussian_blur(img, self.kernel_size, [self.current_sigma])
         return img
     
     def __repr__(self):
